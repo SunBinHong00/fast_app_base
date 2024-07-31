@@ -1,6 +1,8 @@
+import 'package:after_layout/after_layout.dart';
 import 'package:fast_app_base/screen/main/tab/tab_item.dart';
 import 'package:fast_app_base/screen/main/tab/tab_navigator.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import '../../common/common.dart';
 import 'w_menu_drawer.dart';
@@ -12,18 +14,33 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => MainScreenState();
 }
 
-class MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+class MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin, AfterLayoutMixin {
   TabItem _currentTab = TabItem.home;
-  final tabs = [TabItem.home, TabItem.favorite];
+  final tabs = [
+    TabItem.home,
+    TabItem.benefit,
+    TabItem.ttosspay,
+    TabItem.stock,
+    TabItem.all,
+  ];
   final List<GlobalKey<NavigatorState>> navigatorKeys = [];
 
   int get _currentIndex => tabs.indexOf(_currentTab);
 
   GlobalKey<NavigatorState> get _currentTabNavigationKey => navigatorKeys[_currentIndex];
 
+  ///bottomNavigationBar 아래 영역 까지 그림
   bool get extendBody => true;
 
   static double get bottomNavigationBarBorderRadius => 30.0;
+
+  static const double bottomNavigatorHeight = 50;
+
+  @override
+  FutureOr<void> afterFirstLayout(BuildContext context) async {
+    FlutterNativeSplash.remove();
+  }
 
   @override
   void initState() {
@@ -33,14 +50,12 @@ class MainScreenState extends State<MainScreen> with SingleTickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: isRootPage,
-      onPopInvoked: _handleBackPressed,
+    return WillPopScope(
+      onWillPop: _handleBackPressed,
       child: Scaffold(
-        extendBody: extendBody, //bottomNavigationBar 아래 영역 까지 그림
+        extendBody: extendBody,
         drawer: const MenuDrawer(),
-        body: Container(
-          color: context.appColors.seedColor.getMaterialColorValues[200],
+        body: Padding(
           padding: EdgeInsets.only(bottom: extendBody ? 60 - bottomNavigationBarBorderRadius : 0),
           child: SafeArea(
             bottom: !extendBody,
@@ -52,32 +67,29 @@ class MainScreenState extends State<MainScreen> with SingleTickerProviderStateMi
     );
   }
 
-  bool get isRootPage =>
-      _currentTab == TabItem.home && _currentTabNavigationKey.currentState?.canPop() == false;
-
   IndexedStack get pages => IndexedStack(
       index: _currentIndex,
       children: tabs
           .mapIndexed((tab, index) => Offstage(
-                offstage: _currentTab != tab,
-                child: TabNavigator(
-                  navigatorKey: navigatorKeys[index],
-                  tabItem: tab,
-                ),
-              ))
+        offstage: _currentTab != tab,
+        child: TabNavigator(
+          navigatorKey: navigatorKeys[index],
+          tabItem: tab,
+        ),
+      ))
           .toList());
 
-  void _handleBackPressed(bool didPop) {
-    if (!didPop) {
-      if (_currentTabNavigationKey.currentState?.canPop() == true) {
-        Nav.pop(_currentTabNavigationKey.currentContext!);
-        return;
-      }
-
+  Future<bool> _handleBackPressed() async {
+    final isFirstRouteInCurrentTab =
+    (await _currentTabNavigationKey.currentState?.maybePop() == false);
+    if (isFirstRouteInCurrentTab) {
       if (_currentTab != TabItem.home) {
         _changeTab(tabs.indexOf(TabItem.home));
+        return false;
       }
     }
+    // maybePop 가능하면 나가지 않는다.
+    return isFirstRouteInCurrentTab;
   }
 
   Widget _buildBottomNavigationBar(BuildContext context) {
@@ -110,10 +122,10 @@ class MainScreenState extends State<MainScreen> with SingleTickerProviderStateMi
     return tabs
         .mapIndexed(
           (tab, index) => tab.toNavigationBarItem(
-            context,
-            isActivated: _currentIndex == index,
-          ),
-        )
+        context,
+        isActivated: _currentIndex == index,
+      ),
+    )
         .toList();
   }
 
